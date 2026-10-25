@@ -1,100 +1,80 @@
+from pathlib import Path
+
+import joblib
 import pandas as pd
 
-da=pd.read_csv("churnguard_data.csv") # if not in same folder then use the path of that file.
+model_path = Path("models/churn_pipeline.joblib")
 
-df=pd.DataFrame(da)
+if not model_path.exists():
+    print("Model not found. Run python task3_train_model.py first.")
+    raise SystemExit(1)
 
-df=df.drop("customerID",axis=1) # drop used to remove rows or columns.
+model = joblib.load(model_path)
 
-df=df.drop_duplicates() # removes duplicated rows
+print("Enter customer details using the category labels shown in the prompts.\n")
 
-col=["gender","PaymentMethod"]
+gender = input("Gender (Female/Male): ").strip().title()
+senior_citizen = int(input("Senior citizen? (1 = Yes, 0 = No): "))
+tenure = float(input("Tenure in months: "))
+phone_service = input("Phone service (Yes/No): ").strip().title()
+internet_service = input("Internet service (DSL/Fiber optic/No): ").strip().lower()
+contract = input("Contract (Month-to-month/One year/Two year): ").strip().lower()
+paperless_billing = input("Paperless billing (Yes/No): ").strip().title()
+payment_method = input(
+    "Payment method (Electronic check/Mailed check/Bank transfer/Credit card): "
+).strip().lower()
+monthly_charges = float(input("Monthly charges: "))
+total_charges = float(input("Total charges: "))
 
-for i in col:
-    df[i]=df[i].str.strip() # to remove  left,right end spaces from multiple columns.
-
-cols=["Churn","PhoneService","PaperlessBilling"]
-
-for i in cols:
-    df[i]=df[i].str.strip().str.title() # remove left,right end spaces and convert string to tiltle like first letter capital next all small letters.
-
-df["Contract"]=df["Contract"].str.strip().str.lower() #remove left,right end spaces and convert string to lower case letters.
-
-df["Contract"].unique() #gives unique values.
-
-df["Contract"]=df["Contract"].replace({ # replace is used to modify the values mentioned and not mentioned values in columns stays as it is but if we use map they become NAN.
-    "1 year":"One year",
-    "2 year":"Two year",
-    "one year":"One year",
-    "two year":"Two year",
-    "month to month":"Month-to-month",
-    "monthly":"Month-to-month",
-    "month-to-month":"Month-to-month"
-})
-
-df["InternetService"]=df["InternetService"].str.strip().str.lower()
-
-df["InternetService"].unique()
-
-df["InternetService"]=df["InternetService"].replace({
+# Normalize the user-entered categories in the same way as the training data
+internet_service = internet_service.lower()
+internet_service = internet_service.replace("fiberoptic", "fiber optic")
+internet_service = internet_service.replace("fibre optic", "fiber optic")
+internet_service = internet_service.replace("none", "no")
+internet_service = {
     "dsl": "DSL",
-    "fiberoptic": "Fiber optic",
-    "fibre optic": "Fiber optic",
     "fiber optic": "Fiber optic",
-    "none": "No",
     "no": "No"
-})
+}.get(internet_service, internet_service)
 
-df["TotalCharges"]=pd.to_numeric(df["TotalCharges"],errors="coerce") # convert "12"(string numbers) to actual numbers(12) because the array operations can't be performed on string they need to be numericals.
-# errors=coerce is used to replace junk values to NAN like ("AB"," ","e3" are not numbers so they are junt so they are replaced with NAN)
+contract = contract.lower()
+contract = {
+    "month to month": "Month-to-month",
+    "month-to-month": "Month-to-month",
+    "monthly": "Month-to-month",
+    "1 year": "One year",
+    "one year": "One year",
+    "2 year": "Two year",
+    "two year": "Two year"
+}.get(contract, contract)
 
-df=df[~(df["tenure"]<=0)] # removes rows based on condition we must use ~(condition) or (if df["a"]< 10 need to be removed means do df[df["a"]>=10] or ~(df[df["a"]<10]))
+payment_method = payment_method.lower()
+payment_method = {
+    "electronic check": "Electronic check",
+    "mailed check": "Mailed check",
+    "bank transfer": "Bank transfer",
+    "credit card": "Credit card"
+}.get(payment_method, payment_method)
 
-df=df[~((df["MonthlyCharges"]<10) | (df["MonthlyCharges"]>200))] # removes rows based on two condition but to use or(|) for and(&)
+customer = pd.DataFrame([{
+    "gender": gender,
+    "PhoneService": phone_service,
+    "InternetService": internet_service,
+    "Contract": contract,
+    "PaperlessBilling": paperless_billing,
+    "PaymentMethod": payment_method,
+    "SeniorCitizen": senior_citizen,
+    "tenure": tenure,
+    "MonthlyCharges": monthly_charges,
+    "TotalCharges": total_charges
+}])
 
-df["MonthlyCharges"]=df["MonthlyCharges"].fillna(df["MonthlyCharges"].mean())
+churn_probability = model.predict_proba(customer)[0, 1]
+prediction = int(churn_probability >= 0.5)
 
-df["TotalCharges"]=df["TotalCharges"].fillna(df["TotalCharges"].mean())
-
-df["tenure"]=df["tenure"].fillna(round(df["tenure"].median()))
-
-print(df.shape)
-
-print(df.isnull().sum())
-
-df["Churn"]=df["Churn"].map({"Yes":1,"No":0})
-
-df['Contract']=df['Contract'].map({"Month-to-month":0,"One year":1,"Two year":2})
-
-df=df.drop(["gender","PhoneService","InternetService","PaperlessBilling","PaymentMethod"],axis=1)
-
-x_train=df.drop("Churn",axis=1)
-
-y_train=df["Churn"] # we train entire data set
-
-from sklearn.linear_model import LogisticRegression
-
-model=LogisticRegression(max_iter=1000)
-
-model.fit(x_train,y_train)
-
-# taking input for the required features.
-tenure_months=int(input("Enter tenure (months):"))
-
-monthly_charges=float(input("Enter Monthly Charges:"))
-
-total_charges=float(input("Enter Total Charges:"))
-
-senior_citizen=int(input("Senior Citizen? (1 = Yes, 0 = No):"))
-
-contract_type=int(input("Contract type (0 = Month-to-month, 1 = One year, 2 = Two year):"))
-
-x_test_input=[[senior_citizen,tenure_months,contract_type,monthly_charges,total_charges]]
-
-predicted_output=model.predict(x_test_input) # model.predict() returns numpy array.
-
-if(predicted_output[0]==0):
-  print("Prediction: This customer is likely to STAY.")
-
+print("\nEstimated churn probability:", f"{churn_probability:.1%}")
+if prediction == 1:
+    print("Prediction: Higher churn risk at the default 0.50 threshold.")
 else:
-  print("Prediction: This customer is likely to CHURN.")
+    print("Prediction: Lower churn risk at the default 0.50 threshold.")
+print("This is a model estimate, not a guarantee of customer behavior.")

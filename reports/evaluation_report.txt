@@ -1,0 +1,16 @@
+Customer Churn Model Evaluation
+
+Accuracy: 0.6888
+Churn Precision: 0.5046
+Churn Recall: 0.8871
+Churn F1-score: 0.6433
+ROC-AUC: 0.7665
+
+              precision    recall  f1-score   support
+
+        Stay       0.92      0.60      0.72       134
+       Churn       0.50      0.89      0.64        62
+
+    accuracy                           0.69       196
+   macro avg       0.71      0.74      0.68       196
+weighted avg       0.79      0.69      0.70       196
